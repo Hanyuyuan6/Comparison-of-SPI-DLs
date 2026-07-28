@@ -1,0 +1,45 @@
+data:
+  dataset: 'mnist'
+  train_dir: 'data/mnist'
+  val_dir: 'data/mnist'
+  img_size: 128
+  bucket_size: 512
+  preload: true              # cache buckets in RAM (much faster); set false if the dataset is too large
+
+training:
+  device: 'cuda'
+  epochs: 25
+  batch_size: 32
+  num_workers: 8
+  learning_rate: 0.0001
+  intra_epoch_val_times: 3
+
+  optimizer: 'AdamW'
+  optimizer_params:
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+
+  scheduler: 'CosineAnnealingLR'
+  scheduler_params:
+    T_max: 50                # cosine truncated at 25 epochs
+    eta_min: 1e-6
+
+  amp: True
+  experiment_name: 'base_experiment'
+
+model:
+  name: 'FNReconstructionNet'
+  params:
+    img_size: 128
+    bucket_size: 512
+
+loss:
+  name: 'CombinedReconstructionLoss'
+  params:
+    l1_weight: 0.5
+    l2_weight: 0.3
+    ssim_weight: 0.2
+
+logging:
+  use_wandb: False
+  wandb_project: '9M_GIDL'

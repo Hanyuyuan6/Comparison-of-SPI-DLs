@@ -1,0 +1,15 @@
+# Normalize line endings: LF in the repo, native on checkout.
+# Kills the "whole file changed" diffs when committing from Windows,
+# and keeps shell scripts working on Linux/CI clones.
+* text=auto
+
+# Shell scripts must stay LF (a stray CR breaks them on Linux/CI).
+*.sh text eol=lf
+
+# Windows scripts want CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never touch line endings.
+*.png binary

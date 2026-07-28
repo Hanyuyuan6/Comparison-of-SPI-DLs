@@ -1,0 +1,43 @@
+# Scientific computing and linear algebra
+numpy>=1.19,<2.0
+scipy>=1.5
+
+# Image processing
+pillow>=8.0
+opencv-python>=4.5
+scikit-image>=0.18
+
+# Progress indicators and visualization
+matplotlib>=3.3
+tqdm>=4.50
+
+# YAML configuration parsing
+pyyaml>=5.4
+
+# Optimization and academic computing
+cvxpy>=1.1
+
+# Experiment logging: TensorBoard (below) is the default. Weights & Biases is optional —
+# install it only if you set logging.use_wandb: True.
+# wandb>=0.13
+
+# Unit testing
+pytest>=6.0
+
+# HTTP requests (for dataset download scripts)
+requests>=2.27
+
+# Image-related losses (e.g., SSIM)
+kornia>=0.6
+
+#TensorBoard for log visualization
+tensorboard>=2.12
+
+# Deep learning framework — install FIRST from https://pytorch.org (README "Install", step 1).
+# CUDA-specific wheels are intentionally NOT pinned here to avoid a wrong build:
+#   pip install torch torchvision torchaudio
+# torch>=2.0
+# torchvision>=0.15
+
+# FLOPs profiling for scripts/benchmark.py (optional; import is guarded)
+thop>=0.1.1
