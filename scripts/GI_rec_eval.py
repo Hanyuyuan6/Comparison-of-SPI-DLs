@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from src.utils.config_parser import load_config
 from src.datasets.dataset_factory import get_dataset
 from src.metrics.metrics import compute_metrics
+from src.utils.artifacts import sha256_file, sha256_json, write_json_artifact
 from src.utils.ghost_patterns import get_hadamard_matrix
 
 
@@ -24,12 +25,15 @@ def save_single_images(gt_imgs, gi_imgs, save_dir):
     print(f"Saved first {len(gi_imgs)} GT and GI reconstructions to {save_dir}")
 
 
-def traditional_gi_reconstruction_gpu(patterns_full, buckets, img_size):
-    N = patterns_full.shape[0]
+def traditional_gi_reconstruction_gpu(patterns, buckets, img_size):
     B, M = buckets.shape
-    bucket_pad = torch.zeros(B, N, device=buckets.device, dtype=torch.float32)
-    bucket_pad[:, :M] = buckets
-    img_vec = torch.matmul(bucket_pad, patterns_full)
+    expected_shape = (M, img_size ** 2)
+    if tuple(patterns.shape) != expected_shape:
+        raise ValueError(
+            f"patterns must have shape {expected_shape} for buckets {tuple(buckets.shape)}, "
+            f"got {tuple(patterns.shape)}"
+        )
+    img_vec = torch.matmul(buckets, patterns)
     img_gi = img_vec.view(B, img_size, img_size)
     # Remove mean and normalize to [0,1]
     img_gi = img_gi - img_gi.mean(dim=[1, 2], keepdim=True)
@@ -45,6 +49,8 @@ def main(args):
     if args.dataset:
         config['data']['dataset'] = args.dataset
         config['data']['val_dir'] = f'data/{args.dataset}'
+    if getattr(args, 'bucket_size', None):
+        config['data']['bucket_size'] = args.bucket_size
 
     dataset_name = config['data']['dataset']
     val_dir = config['data']['val_dir']
@@ -70,10 +76,9 @@ def main(args):
         pin_memory=True
     )
 
-    N = img_size ** 2
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    patterns_full = get_hadamard_matrix(N, N)
-    patterns_full = torch.from_numpy(patterns_full.astype(np.float32)).to(device)
+    patterns = get_hadamard_matrix(img_size ** 2, bucket_size)
+    patterns = torch.from_numpy(patterns).to(device)
 
     all_metrics = {}
     gi_images_to_save = []
@@ -97,7 +102,7 @@ def main(args):
                 images_gt = torch.from_numpy(images_gt)
             images_gt = images_gt.float()
             B = buckets.shape[0]
-            img_gis = traditional_gi_reconstruction_gpu(patterns_full, buckets, img_size)
+            img_gis = traditional_gi_reconstruction_gpu(patterns, buckets, img_size)
             for b in range(B):
                 img_gi = img_gis[b]
                 gt = images_gt[b, 0].cpu().numpy()
@@ -115,6 +120,22 @@ def main(args):
         print(f"{k.upper()}: {v:.4f}")
 
     save_single_images(gt_images_to_save, gi_images_to_save, save_dir)
+    summary = {
+        'schema_version': 1,
+        'script': 'scripts.GI_rec_eval',
+        'method': 'Hadamard adjoint',
+        'dataset': dataset_name,
+        'bucket_size': int(bucket_size),
+        'split': 'val',
+        'n': len(next(iter(all_metrics.values()), [])),
+        'source_config_sha256': sha256_file(args.config),
+        'effective_config_sha256': sha256_json(config),
+        'metrics': avg_metrics,
+    }
+    if getattr(args, 'out_json', None):
+        write_json_artifact(args.out_json, summary)
+        logging.info(f"Machine-readable metrics written to {args.out_json}")
+    return summary
 
 
 if __name__ == '__main__':
@@ -122,7 +143,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Traditional GI reconstruction evaluation (GPU-accelerated)")
     parser.add_argument('--config', type=str, required=True, help="Config file path")
     parser.add_argument('--dataset', type=str, default=None, help="Override dataset name")
+    parser.add_argument('--bucket_size', type=int, default=None, help="Override measurement count / sampling rate")
     parser.add_argument('--save_dir', type=str, default='./gi_vis', help="Directory to save images")
     parser.add_argument('--max_batches', type=int, default=None, help="Evaluate only the first N batches (quick check)")
+    parser.add_argument('--out_json', type=str, default=None, help="Write metrics and config hash as JSON")
     args = parser.parse_args()
     main(args)

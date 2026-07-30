@@ -19,11 +19,12 @@ from src.trainer import Trainer
 def main(args):
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s [%(levelname)s] %(message)s")
-    seed_everything(42)
-    g = torch.Generator()
-    g.manual_seed(42)
-
     config = load_config(args.config)
+    seed = getattr(args, 'seed', 42)
+    seed_everything(seed)
+    g = torch.Generator()
+    g.manual_seed(seed)
+    config['training']['seed'] = seed
 
     # Override config with CLI arguments if provided
     if args.dataset:
@@ -41,6 +42,8 @@ def main(args):
         config['model']['params']['bucket_size'] = args.bucket_size
     if args.experiment_name:
         config['training']['experiment_name'] = args.experiment_name
+    if args.refuse_existing_output:
+        config['training']['refuse_existing_output'] = True
 
     # Safety: experiments_celeba/* inherit dataset='mnist' from base_config and
     # only become CelebA via --dataset; fail loudly if the flag was forgotten.
@@ -140,5 +143,9 @@ if __name__ == '__main__':
                         help="Override measurement count / sampling rate (512=3.13%%, 1024=6.25%%, 2048=12.5%%)")
     parser.add_argument('--experiment_name', type=str, default=None,
                         help="Override checkpoint/log dir name (avoids collisions in a multi-run sweep)")
+    parser.add_argument('--seed', type=int, default=42,
+                        help="Random seed recorded in the resolved checkpoint config (default: 42)")
+    parser.add_argument('--refuse_existing_output', action='store_true',
+                        help="fail if the experiment or checkpoint directory already exists")
     args = parser.parse_args()
     main(args)

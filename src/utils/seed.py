@@ -1,4 +1,5 @@
 import random
+import os
 import numpy as np
 import torch
 
@@ -12,6 +13,11 @@ def seed_everything(seed: int = 42, deterministic: bool = True):
     across invocations (at a small throughput cost). ``warn_only=True`` keeps
     ops without a deterministic kernel from hard-failing.
     """
+    if deterministic:
+        # Required by deterministic CUDA GEMM on CUDA >= 10.2. Set it before
+        # the first CUDA operation; setdefault respects an explicit user choice.
+        os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -20,10 +26,7 @@ def seed_everything(seed: int = 42, deterministic: bool = True):
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        try:
-            torch.use_deterministic_algorithms(True, warn_only=True)
-        except Exception:
-            pass
+        torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def seed_worker(worker_id):

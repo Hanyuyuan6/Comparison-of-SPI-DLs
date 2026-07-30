@@ -2,9 +2,9 @@ import torch
 import argparse
 import logging
 from pathlib import Path
-import json
 
 import src.models as models
+from src.utils.artifacts import write_json_artifact
 from src.utils.model_utils import count_parameters, measure_inference_time, calculate_flops
 from src.utils.config_parser import load_config
 
@@ -52,26 +52,19 @@ def main(args):
     for key in model_keys:
         cfg_path = config_dir / f'{key}.yaml'
         if not cfg_path.exists():
-            logging.warning(f"Config not found, skipping: {cfg_path}")
-            continue
+            raise FileNotFoundError(f"Required benchmark config not found: {cfg_path}")
         cfg = load_config(str(cfg_path))
         model_name = cfg['model']['name']
         model_params = dict(cfg['model']['params'])
         if args.bucket_size is not None:
             model_params['bucket_size'] = args.bucket_size
-        try:
-            results = benchmark_model(model_name, model_params, device)
-            results['config'] = str(cfg_path).replace('\\', '/')
-            results['bucket_size'] = model_params['bucket_size']
-            all_results.append(results)
-        except Exception as e:
-            logging.error(f"Benchmark failed for {model_name}: {e}")
+        results = benchmark_model(model_name, model_params, device)
+        results['config'] = str(cfg_path).replace('\\', '/')
+        results['bucket_size'] = model_params['bucket_size']
+        all_results.append(results)
 
     output_file = Path(args.output_dir) / f'benchmark_results_{args.dataset}.json'
-    output_file.parent.mkdir(exist_ok=True)
-
-    with open(output_file, 'w') as f:
-        json.dump(all_results, f, indent=2, ensure_ascii=False)
+    write_json_artifact(output_file, all_results)
 
     logging.info(f"Benchmark results saved to: {output_file}")
 

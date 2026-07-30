@@ -1,8 +1,8 @@
 # Single-Pixel Imaging Reconstruction — a Deep-Learning Benchmark
 
 [![arXiv](https://img.shields.io/badge/arXiv-2607.22077-b31b1b.svg)](https://arxiv.org/abs/2607.22077)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch 2.0+](https://img.shields.io/badge/pytorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch 2.13](https://img.shields.io/badge/pytorch-2.13-ee4c2c.svg)](https://pytorch.org/)
 [![CI](https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs/actions/workflows/ci.yml/badge.svg)](https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -36,39 +36,60 @@ where `x` is a `128×128` image (`N = 16384`) and `Φ` is the first `M` rows of 
 | Attention | `transformer` → `TransformerReconstructionNet` |
 | Graph | `gcn` → `GCNReconstructionNet` |
 
-The eight networks map `y` back to `x` and share decoder-head conventions, so their `state_dict`s and
-parameter counts stay directly comparable.
+The eight networks map `y` back to `x`. The sequence/graph models (RNN, LSTM, GRU, Transformer and GCN)
+share the decoder in `BaseReconstructionNet`; FC, CNN and U-Net retain their native heads. Parameter
+budgets are compared, but `state_dict`s are **not** interchangeable across architectures.
 
 ## Install
 
 ```bash
 git clone https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs.git
 cd Comparison-of-SPI-DLs
-conda create -n spi-dl python=3.9 -y && conda activate spi-dl
+conda create -n spi-dl python=3.10 -y && conda activate spi-dl
 
-# 1) PyTorch for your CUDA build (see pytorch.org); CUDA 12.1 example:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-# 2) the rest:
+# CPU verification environment (for CUDA, use the matching official PyTorch 2.13 index):
+pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
+pip check
 ```
 
 TensorBoard is the default logger; Weights & Biases is optional (`logging.use_wandb: True`).
 
+> **Environment provenance.** `requirements.txt` pins the direct dependencies in the reviewed Python
+> 3.10 verification environment; transitive packages are resolver-selected rather than hash-locked.
+> The historical environment that produced the paper's Table I was
+> not archived, so PyTorch 2.13 is **not** claimed to have generated those published numbers. Re-running
+> Table I under this pinned environment is a new reproduction and should be reported as such.
+
 ## Data
 
 ```bash
-python -m scripts.prepare_datasets --data_root ./data --dataset all   # or: mnist | fashion_mnist | celeba | div2k | bsd500 | carvana
+# torchvision verifies MNIST/Fashion-MNIST with its registered checksums:
+python -m scripts.prepare_datasets --data_root ./data --dataset mnist
+
+# Other archives require a SHA-256 obtained from a trusted publisher/verified copy:
+python -m scripts.prepare_datasets --data_root ./data --dataset celeba \
+  --sha256 celeba.zip=<TRUSTED_64_HEX_DIGEST>
+python -m scripts.prepare_datasets --data_root ./data --dataset div2k \
+  --sha256 DIV2K_train_HR.zip=<TRUSTED_64_HEX_DIGEST> \
+  --sha256 DIV2K_valid_HR.zip=<TRUSTED_64_HEX_DIGEST>
 ```
 
-MNIST / Fashion-MNIST download via torchvision. CelebA is pulled from a public mirror (images only) and
-split 90/10 into a **disjoint** `train/`–`val/` — a random split, **not** CelebA's official
-train/val/test partition. DIV2K / BSD500 auto-download; Carvana needs a manual Kaggle download.
+Downloads and already-present archives are both verified before extraction; a missing or mismatched
+digest fails closed. Do not compute a digest from the same untrusted download and treat it as provenance.
+CelebA uses a third-party public mirror (images only) and is split 90/10 into a **disjoint** `train/`–`val/`
+random split, **not** CelebA's official train/val/test partition. The released protocol requires exactly
+202,599 source images and publishes `_prepared_meta.json` for the 182,339/20,260 split; missing, partial,
+overlapping, empty, byte-modified, extra-file, or unverified split directories fail closed. The retained
+`celeba.zip` is rehashed against the manifest so the prepared-byte inventory stays bound to the trusted
+source archive. Carvana remains a manual Kaggle
+download and its archives likewise require repeated `--sha256 FILENAME=...` arguments.
 
 ## Train
 
 ```bash
 python -m scripts.train --config configs/experiments_mnist/gru.yaml \
-    --dataset mnist --experiment_name gru_run
+    --dataset mnist --experiment_name gru_run --seed 42
 ```
 
 Each model YAML inherits `configs/base_config.yaml`. Common overrides:
@@ -78,21 +99,35 @@ Each model YAML inherits `configs/base_config.yaml`. Common overrides:
 | `--dataset {mnist,fashion_mnist,celeba,…}` | dataset (required for the CelebA configs) |
 | `--bucket_size {512,1024,2048}` | sampling rate — 3.13 / 6.25 / 12.5 % |
 | `--epochs N` · `--batch_size N` · `--experiment_name NAME` | usual overrides |
+| `--seed N` | seed recorded in the resolved checkpoint config (default: 42) |
 | `--num_workers 0` | **use on Windows** (see note) |
 
 Best checkpoint (by validation PSNR) → `checkpoints/<name>/best.pth`; curves and sample reconstructions
 → TensorBoard under `experiments/<name>/`.
 
-> **Windows.** `data.preload: true` caches each Hadamard bucket in RAM; with the default `num_workers: 8`,
-> Windows *spawns* (not forks) workers and copies the cache into each, which can stall the loader. Pass
-> `--num_workers 0` (or set `data.preload: false`). Linux/macOS fork and share the cache.
+> **Windows/macOS.** `data.preload: true` caches each Hadamard bucket in RAM. Windows and modern macOS
+> Python use `spawn`, which copies the cache into each worker and can stall the loader. Pass
+> `--num_workers 0` (or set `data.preload: false`); `run_all.sh` now defaults to zero workers on every
+> platform for portability, while Linux users may explicitly raise `NUM_WORKERS` after checking memory.
 
 **Full sweep & profiling**
 
 ```bash
-bash scripts/run_all.sh                               # all backbones × datasets × sampling rates
+# Set CELEBA_SHA256 unless data/celeba/train and val are already prepared and verified.
+CELEBA_SHA256=<TRUSTED_64_HEX_DIGEST> SEED=42 RUN_ID=repro01 bash scripts/run_all.sh
 python -m scripts.benchmark --dataset mnist   # parameter count / latency / FLOPs
 ```
+
+`run_all.sh` is fail-closed (`set -euo pipefail`) and atomically reserves a new `RESULT_ROOT` before
+writing, so duplicate/concurrent `RUN_ID` values cannot overwrite a prior run. It refuses stale
+checkpoint/output directories, evaluates
+the exact eight-model by five-condition matrix, runs the Hadamard baseline at all five Table-I conditions,
+and profiles all eight models at three rates. Each safe `RUN_ID` gets its own
+`results/reproduction/<RUN_ID>/`; the final validator requires exactly 48 identified artifacts (49 with
+the optional CS diagnostic), exact sample counts, finite metrics, and no extra JSON files. The validator
+rehashes each checkpoint and source config, safely reloads each embedded effective config, and verifies
+the reported lineage hashes before writing its SHA-256 manifest. It does **not** compare against or fabricate paper values. Set
+`RUN_CS_BASELINE=1` only for the optional, very slow CS diagnostic; it is not a Table-I row.
 
 ## Evaluate & inference
 
@@ -110,19 +145,21 @@ python -m scripts.CS_GI_rec_eval --config configs/experiments_mnist/GI.yaml --da
 ```
 
 Add `--max_batches N` for a quick pass (the CS solver is slow at full resolution). The predict/eval
-scripts load `weights_only=True` first and fall back to a full load only for training checkpoints —
-load `.pth` files only from a source you trust.
+scripts fail closed if `weights_only=True` cannot load a checkpoint. A legacy checkpoint from a trusted
+source may be loaded only with the explicit `--allow_unsafe_pickle` flag; full pickle loads can execute
+arbitrary code. For `.mat` bucket files, automatic selection is allowed only when exactly one eligible
+numeric vector exists; otherwise select it explicitly with `--mat_key VARIABLE`.
 
 **The classical baselines need no weights.** GI is the closed-form Hadamard adjoint — no training, no
 checkpoint, no seed — so it recomputes from a clean clone alone, whereas the eight network rows must be
-trained first (this repository ships no weights). `--dataset {mnist,fashion_mnist,celeba}` covers the
-3.13% conditions; the higher MNIST rates come from `data.bucket_size` (1024 / 2048) in the YAML, which
-`GI_rec_eval.py` reads from the config rather than from the command line.
+trained first (this repository ships no weights). `GI_rec_eval.py --bucket_size {512,1024,2048}` exposes
+all three MNIST sampling rates without editing a committed YAML.
 
 ## Reproducibility & tests
 
-Reproducible by construction: fixed seed (Python / NumPy / PyTorch + cuDNN-deterministic + DataLoader
-workers), one YAML per run, a one-command sweep, no magic CLI strings.
+The runner records an explicit seed and enables Python / NumPy / PyTorch, cuDNN, DataLoader-worker and
+cuBLAS determinism controls. This makes same-environment reruns inspectable, not statistically replicated:
+the paper table contains one training run per cell and therefore has no seed uncertainty estimates.
 
 **Test suite** — `pytest test/`, CPU-only, run in CI on every push:
 
@@ -131,6 +168,7 @@ workers), one YAML per run, a one-command sweep, no magic CLI strings.
 | `test_models.py` | forward shape, `[0,1]` output range, **exact parameter counts** (pins the reported tables) |
 | `test_pipeline.py` | Hadamard operator (`ΦΦᵀ = N·I`), data pipeline, that training actually learns, metric orientation, GI back-projection |
 | `test_integration.py` | the **shipped** dataset / Trainer / `evaluate` / baselines end-to-end, with hand-written math twins as differential oracles |
+| `test_safety.py` | fail-closed checkpoints/buckets, archive links and checksums, complete CelebA manifest, non-finite-loss rejection, cuBLAS seed contract, and exact 48-artifact sweep contract |
 
 ## Evaluation protocol
 

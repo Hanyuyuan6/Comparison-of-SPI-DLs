@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 from src.utils.config_parser import load_config
 from src.datasets.dataset_factory import get_dataset
 from src.metrics.metrics import compute_metrics
+from src.utils.artifacts import sha256_file, sha256_json, write_json_artifact
+from src.utils.checkpoint import load_checkpoint
 import src.models as models
 import src.transforms as custom_transforms
 
@@ -15,15 +17,11 @@ import src.transforms as custom_transforms
 def evaluate(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # safe loader first; full training checkpoints need weights_only=False. Only load trusted files.
-    try:
-        checkpoint = torch.load(args.ckpt_path, map_location=device, weights_only=True)
-    except Exception:
-        logging.warning(
-            "weights_only=True failed; falling back to a full (unsafe pickle) load. "
-            "Only load checkpoints from a source you trust."
-        )
-        checkpoint = torch.load(args.ckpt_path, map_location=device, weights_only=False)
+    checkpoint = load_checkpoint(
+        args.ckpt_path,
+        map_location=device,
+        allow_unsafe_pickle=getattr(args, 'allow_unsafe_pickle', False),
+    )
 
     config = checkpoint.get('config') if isinstance(checkpoint, dict) else None
     if config is None:
@@ -65,10 +63,33 @@ def evaluate(args):
                 for k, v in compute_metrics(pred[j], target[j]).items():
                     agg[k].append(v)
 
+    metrics = {k: float(np.mean(agg[k])) for k in ['l1', 'mse', 'psnr', 'ssim']}
+    summary = {
+        'schema_version': 1,
+        'script': 'scripts.evaluate',
+        'model': config['model']['name'],
+        'dataset': config['data']['dataset'],
+        'bucket_size': int(config['data']['bucket_size']),
+        'split': 'val',
+        'experiment_name': config['training']['experiment_name'],
+        'seed': int(config['training'].get('seed', 42)),
+        'configured_epochs': int(config['training']['epochs']),
+        'checkpoint_epoch': int(checkpoint.get('epoch', 0)),
+        'n': len(agg['psnr']),
+        'checkpoint_sha256': sha256_file(args.ckpt_path),
+        'effective_config_sha256': sha256_json(config),
+        'metrics': metrics,
+    }
+
     print(f"==== {config['model']['name']} on {config['data']['dataset']} "
           f"(bucket_size={config['data']['bucket_size']}, n={len(agg['psnr'])}) ====")
     for k in ['l1', 'mse', 'psnr', 'ssim']:
-        print(f"{k.upper()}: {np.mean(agg[k]):.4f}")
+        print(f"{k.upper()}: {metrics[k]:.4f}")
+
+    if getattr(args, 'out_json', None):
+        write_json_artifact(args.out_json, summary)
+        logging.info(f"Machine-readable metrics written to {args.out_json}")
+    return summary
 
 
 if __name__ == '__main__':
@@ -79,5 +100,9 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default=None, help="Config file (only needed if the checkpoint has none)")
     parser.add_argument('--bucket_size', type=int, default=None, help="Override sampling rate")
     parser.add_argument('--max_batches', type=int, default=None, help="Evaluate only the first N batches (quick check)")
+    parser.add_argument('--out_json', type=str, default=None, help="Write metrics and checkpoint hash as JSON")
+    parser.add_argument(
+        '--allow_unsafe_pickle', action='store_true',
+        help="Allow weights_only=False for a trusted legacy checkpoint (can execute arbitrary code)")
     args = parser.parse_args()
     evaluate(args)

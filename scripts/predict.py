@@ -8,21 +8,18 @@ import os
 from src.utils.ghost_patterns import get_hadamard_matrix
 from src.utils.visualization import show_reconstruction
 from src.metrics.metrics import compute_metrics
+from src.utils.checkpoint import load_checkpoint
 import src.models as models
 
 
 def predict(args):
     logging.info(f"Loading checkpoint: {args.ckpt_path}")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # safe loader first; full training checkpoints need weights_only=False. Only load trusted files.
-    try:
-        checkpoint = torch.load(args.ckpt_path, map_location=device, weights_only=True)
-    except Exception:
-        logging.warning(
-            "weights_only=True failed; falling back to a full (unsafe pickle) load. "
-            "Only load checkpoints from a source you trust."
-        )
-        checkpoint = torch.load(args.ckpt_path, map_location=device, weights_only=False)
+    checkpoint = load_checkpoint(
+        args.ckpt_path,
+        map_location=device,
+        allow_unsafe_pickle=getattr(args, 'allow_unsafe_pickle', False),
+    )
     config = checkpoint['config']
 
     ModelClass = getattr(models, config['model']['name'])
@@ -72,6 +69,9 @@ if __name__ == '__main__':
     parser.add_argument('--img_path', type=str, required=True, help="Input image path")
     parser.add_argument('--ckpt_path', type=str, required=True, help="Model checkpoint (.pth)")
     parser.add_argument('--save_dir', type=str, default='./recon_results', help="Save directory for reconstructions")
+    parser.add_argument(
+        '--allow_unsafe_pickle', action='store_true',
+        help="Allow weights_only=False for a trusted legacy checkpoint (can execute arbitrary code)")
     args = parser.parse_args()
 
     predict(args)

@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from src.utils.config_parser import load_config
 from src.datasets.dataset_factory import get_dataset
 from src.metrics.metrics import compute_metrics
+from src.utils.artifacts import sha256_file, sha256_json, write_json_artifact
 from src.utils.ghost_patterns import get_hadamard_matrix
 
 
@@ -167,6 +168,22 @@ def main(args):
         print(f"{k.upper()}: {v:.4f}")
 
     save_single_images(gt_images_to_save, rec_images_to_save, save_dir, prefix=f"CS-{rec_method.upper()}")
+    summary = {
+        'schema_version': 1,
+        'script': 'scripts.CS_GI_rec_eval',
+        'method': rec_method,
+        'dataset': dataset_name,
+        'bucket_size': int(bucket_size),
+        'split': 'val',
+        'n': len(next(iter(all_metrics.values()), [])),
+        'source_config_sha256': sha256_file(args.config),
+        'effective_config_sha256': sha256_json(config),
+        'metrics': avg_metrics,
+    }
+    if getattr(args, 'out_json', None):
+        write_json_artifact(args.out_json, summary)
+        logging.info(f"Machine-readable metrics written to {args.out_json}")
+    return summary
 
 
 if __name__ == '__main__':
@@ -181,5 +198,6 @@ if __name__ == '__main__':
                         help="Reconstruction method: 'tv' = TV-regularized gradient descent; "
                              "'admm' = pixel-domain L1/BPDN via cvxpy (name kept for compatibility)")
     parser.add_argument('--max_batches', type=int, default=None, help="Reconstruct only the first N batches (quick check)")
+    parser.add_argument('--out_json', type=str, default=None, help="Write metrics and config hash as JSON")
     args = parser.parse_args()
     main(args)

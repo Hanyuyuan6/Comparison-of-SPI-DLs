@@ -14,6 +14,7 @@ NxN Hadamard matrix small on CI runners; the equivalence being tested is
 size-independent.
 """
 import os
+import json
 import sys
 from types import SimpleNamespace
 
@@ -148,7 +149,7 @@ def test_train_then_evaluate_full_pipeline(img_dir, tmp_path, monkeypatch, capsy
 
     best = tmp_path / 'checkpoints' / 'ci_pipeline_smoke' / 'best.pth'
     assert best.exists(), "Trainer did not write best.pth"
-    ckpt = torch.load(str(best), map_location='cpu', weights_only=False)
+    ckpt = torch.load(str(best), map_location='cpu', weights_only=True)
     assert 'model_state_dict' in ckpt and 'config' in ckpt
     assert np.isfinite(ckpt['best_metric']) and ckpt['best_metric'] > 0
 
@@ -161,10 +162,15 @@ def test_train_then_evaluate_full_pipeline(img_dir, tmp_path, monkeypatch, capsy
         assert torch.allclose(model(xb), m2(xb), atol=1e-6)
 
     # the REAL numbers-producing script, end to end on the same checkpoint
+    metrics_json = tmp_path / 'evaluation.json'
     evaluate(SimpleNamespace(ckpt_path=str(best), dataset=None, config=None,
-                             bucket_size=None, max_batches=None))
+                             bucket_size=None, max_batches=None,
+                             allow_unsafe_pickle=False, out_json=str(metrics_json)))
     out = capsys.readouterr().out
     assert 'PSNR' in out and 'SSIM' in out
+    payload = json.loads(metrics_json.read_text(encoding='utf-8'))
+    assert payload['n'] == 6 and payload['checkpoint_sha256']
+    assert set(payload['metrics']) == {'l1', 'mse', 'psnr', 'ssim'}
 
 
 # --------------------------------------------------------------------------- classical baselines
@@ -176,11 +182,10 @@ def test_gi_real_function_matches_twin(img_dir):
     n = img * img
     ds = get_dataset('custom', root_dir=str(img_dir), bucket_size=m, img_size=img, mode='val')
     s = ds[0]
-    y = torch.from_numpy(s['bucket_raw'])[None]                       # CPU tensors in,
-    Hfull = torch.from_numpy(get_hadamard_matrix(n, n).astype(np.float32))
-    real = traditional_gi_reconstruction_gpu(Hfull, y, img)[0]        # CPU out (device-agnostic)
+    y = torch.from_numpy(s['bucket_raw'])[None]
+    Phi = get_hadamard_matrix(n, m)
+    real = traditional_gi_reconstruction_gpu(torch.from_numpy(Phi), y, img)[0]
 
-    Phi = get_hadamard_matrix(n, m).astype(np.float32)                # twin
     tw = (Phi.T @ s['bucket_raw']).reshape(img, img)
     tw = tw - tw.mean()
     tw = (tw - tw.min()) / (tw.max() - tw.min() + 1e-8)

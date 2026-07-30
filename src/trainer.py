@@ -21,13 +21,29 @@ class Trainer:
         self.config = config
 
         self.epochs = self.config['training']['epochs']
-        self.amp = self.config['training']['amp']
+        self.amp = bool(self.config['training']['amp'] and self.device.type == 'cuda')
 
         # Paths for logs and checkpoints
         self.exp_path = Path('experiments') / self.config['training']['experiment_name']
         self.checkpoint_path = Path('checkpoints') / self.config['training']['experiment_name']
-        self.exp_path.mkdir(parents=True, exist_ok=True)
-        self.checkpoint_path.mkdir(parents=True, exist_ok=True)
+        if self.config['training'].get('refuse_existing_output', False):
+            self.exp_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                self.exp_path.mkdir()
+            except FileExistsError as exc:
+                raise FileExistsError(
+                    f"refusing to reuse an existing experiment directory: {self.exp_path}"
+                ) from exc
+            self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                self.checkpoint_path.mkdir()
+            except FileExistsError as exc:
+                raise FileExistsError(
+                    f"refusing to reuse an existing checkpoint directory: {self.checkpoint_path}"
+                ) from exc
+        else:
+            self.exp_path.mkdir(parents=True, exist_ok=True)
+            self.checkpoint_path.mkdir(parents=True, exist_ok=True)
 
         # Initialize WandB logger if enabled
         self.use_wandb = self.config.get('logging', {}).get('use_wandb', False)
@@ -46,7 +62,7 @@ class Trainer:
 
         self.writer = SummaryWriter(log_dir=self.exp_path)
         self._setup_logging()
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.amp)
+        self.scaler = torch.amp.GradScaler(device='cuda', enabled=self.amp)
         logging.info(f"Model parameters: {count_parameters(self.model):,}")
 
         self.best_metric = -1.0
@@ -86,9 +102,15 @@ class Trainer:
             bucket = batch['bucket'].to(self.device)
             target_img = batch['image'].to(self.device)
 
-            with torch.cuda.amp.autocast(enabled=self.amp):
+            with torch.amp.autocast(device_type='cuda', enabled=self.amp):
                 pred_img = self.model(bucket)
                 loss = self.criterion(pred_img, target_img)
+
+            if not torch.isfinite(loss):
+                raise FloatingPointError(
+                    f"non-finite training loss at epoch={epoch}, batch={batch_idx + 1}: "
+                    f"{float(loss.detach().cpu())}"
+                )
 
             self.optimizer.zero_grad()
             self.scaler.scale(loss).backward()
@@ -175,7 +197,12 @@ class Trainer:
                         'val/reconstruction': pred_img[:num_images]
                     }, step=int(epoch))
 
-        avg_metrics = {k: (sum(v) / len(v) if len(v) > 0 else 0.0) for k, v in all_metrics.items()}
+        # Store only Python scalars in checkpoints so weights_only=True can load
+        # newly generated artifacts without allowlisting NumPy pickle globals.
+        avg_metrics = {
+            k: float(sum(v) / len(v)) if len(v) > 0 else 0.0
+            for k, v in all_metrics.items()
+        }
         avg_val_loss = val_loss / len(self.val_loader) if len(self.val_loader) > 0 else 0.0
         avg_inference_time = (sum(inference_times) / len(inference_times) * 1000) if inference_times else 0.0
 
@@ -203,7 +230,7 @@ class Trainer:
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
-            'best_metric': self.best_metric,
+            'best_metric': float(self.best_metric),
             'config': self.config
         }
         latest_path = self.checkpoint_path / 'latest.pth'
@@ -225,6 +252,10 @@ class Trainer:
                 else:
                     self.scheduler.step()
             current_metric = val_metrics.get('psnr', 0.0)
+            if not torch.isfinite(torch.tensor(current_metric)):
+                raise FloatingPointError(
+                    f"non-finite validation PSNR at epoch={epoch}: {current_metric}"
+                )
             is_best = current_metric > self.best_metric
             if is_best:
                 self.best_metric = current_metric

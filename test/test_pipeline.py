@@ -16,6 +16,7 @@ import sys
 
 import numpy as np
 import pytest
+import scipy.linalg
 import torch
 from PIL import Image
 
@@ -44,6 +45,16 @@ def test_hadamard_operator():
     assert np.allclose(Phi @ Phi.T, N * np.eye(M)), "Hadamard rows must satisfy Phi Phi^T = N*I"
 
 
+@pytest.mark.parametrize('n,m', [(2, 1), (8, 5), (64, 17), (128, 128)])
+def test_memory_efficient_hadamard_matches_scipy(n, m):
+    """The O(MN) generator must exactly match SciPy's Sylvester natural order."""
+    actual = get_hadamard_matrix(n, m)
+    expected = scipy.linalg.hadamard(n)[:m].astype(np.float32)
+    assert actual.dtype == np.float32
+    assert np.array_equal(actual, expected)
+    assert np.array_equal(actual @ actual.T, n * np.eye(m, dtype=np.float32))
+
+
 def test_hadamard_rejects_non_power_of_two():
     """A non-power-of-two pixel count would column-truncate the Hadamard into a
     non-orthogonal operator (Phi Phi^T != N*I) -- a physically invalid SPI forward
@@ -54,6 +65,9 @@ def test_hadamard_rejects_non_power_of_two():
     for bad_N in (28 * 28, 100 * 100):              # 784, 10000: not powers of two
         with pytest.raises(ValueError):
             get_hadamard_matrix(bad_N, M)
+    for bad_m in (0, N + 1):
+        with pytest.raises(ValueError):
+            get_hadamard_matrix(N, bad_m)
 
 
 def test_data_pipeline_bucket():
