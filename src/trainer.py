@@ -8,6 +8,7 @@ import time
 from src.metrics.metrics import compute_metrics
 from src.utils.wandb_logger import WandbLogger
 from src.utils.model_utils import count_parameters
+from src.utils.path_safety import safe_child_directory
 
 class Trainer:
     def __init__(self, model, optimizer, criterion, train_loader, val_loader, scheduler, device, config):
@@ -24,8 +25,9 @@ class Trainer:
         self.amp = bool(self.config['training']['amp'] and self.device.type == 'cuda')
 
         # Paths for logs and checkpoints
-        self.exp_path = Path('experiments') / self.config['training']['experiment_name']
-        self.checkpoint_path = Path('checkpoints') / self.config['training']['experiment_name']
+        experiment_name = self.config['training']['experiment_name']
+        self.exp_path = safe_child_directory('experiments', experiment_name)
+        self.checkpoint_path = safe_child_directory('checkpoints', experiment_name)
         if self.config['training'].get('refuse_existing_output', False):
             self.exp_path.parent.mkdir(parents=True, exist_ok=True)
             try:
@@ -50,7 +52,7 @@ class Trainer:
         if self.use_wandb:
             self.wandb_logger = WandbLogger(
                 project_name=self.config.get('logging', {}).get('wandb_project', 'default_project'),
-                experiment_name=self.config['training']['experiment_name'],
+                experiment_name=experiment_name,
                 config=self.config
             )
             # Group epoch-level metrics

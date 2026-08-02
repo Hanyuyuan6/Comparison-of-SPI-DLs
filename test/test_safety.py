@@ -26,6 +26,20 @@ from src.utils.config_parser import load_config
 from scripts.validate_reproduction_artifacts import CONDITIONS, MODEL_KEYS, validate
 from src.utils.artifacts import sha256_file, sha256_json
 from src.trainer import Trainer
+from src.utils.path_safety import safe_child_directory
+
+
+@pytest.mark.parametrize(
+    'name', ['', '.', '..', '../escape', '..\\escape', '/tmp/escape', ' trailing'],
+)
+def test_experiment_output_name_cannot_escape_root(tmp_path, name):
+    with pytest.raises((TypeError, ValueError), match='experiment_name'):
+        safe_child_directory(tmp_path, name)
+
+
+def test_experiment_output_name_preserves_released_names(tmp_path):
+    assert safe_child_directory(
+        tmp_path, 'fn_mnist_512_seed42_r1') == tmp_path / 'fn_mnist_512_seed42_r1'
 
 
 def test_checkpoint_loader_fails_closed(monkeypatch):

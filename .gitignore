@@ -147,6 +147,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -204,6 +206,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+.npmrc
+secrets.toml
+.aws/
+.ssh/id_*
 
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
