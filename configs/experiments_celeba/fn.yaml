@@ -1,0 +1,9 @@
+base: '../base_config.yaml'
+
+model:
+  name: 'FNReconstructionNet'
+  params:
+    hidden_dims: [4096, 4096, 4096, 4096, 4096]
+
+training:
+  experiment_name: 'fn_ghost_imaging_512_c'

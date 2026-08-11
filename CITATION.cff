@@ -1,0 +1,60 @@
+cff-version: 1.2.0
+message: >-
+  If you use this code, please cite the preprint below (arXiv:2607.22077).
+title: "Comparison-of-SPI-DLs: temporal-encoder benchmark for single-pixel image reconstruction"
+authors:
+  - family-names: Han
+    given-names: Yuyuan
+license: MIT
+repository-code: "https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs"
+keywords:
+  - single-pixel imaging
+  - image reconstruction
+  - benchmark
+  - computational imaging
+  - ghost imaging
+  - deep learning
+  - pytorch
+preferred-citation:
+  type: article
+  title: >-
+    The Lift Spectrum: How Measurement-to-Space Adaptivity Shapes
+    Robustness in Image-Free Single-Pixel Sensing
+  authors:
+    - family-names: Han
+      given-names: Yuyuan
+    - family-names: Li
+      given-names: Jingwei
+    - family-names: Zhang
+      given-names: Xiaoxia
+    - family-names: Qiu
+      given-names: Long
+    - family-names: Wang
+      given-names: Chong
+    - family-names: Hao
+      given-names: Wenxuan
+    - family-names: Han
+      given-names: Jiangyu
+    - family-names: Yao
+      given-names: Xinyu
+    - family-names: He
+      given-names: Yuchen
+    - family-names: Chen
+      given-names: Hui
+    - family-names: Liu
+      given-names: Jianbin
+    - family-names: Zheng
+      given-names: Huaibin
+  journal: "arXiv preprint arXiv:2607.22077"
+  year: 2026
+  url: "https://arxiv.org/abs/2607.22077"
+  identifiers:
+    - type: other
+      value: "arXiv:2607.22077"
+      description: arXiv preprint
+  # This status travels with the exported BibTeX (as its `note` field); the
+  # top-level `message` does not. Replace with the journal, volume, pages and
+  # DOI once the paper is published.
+  notes: >-
+    Preprint; not peer-reviewed. Verify the bibliographic details before
+    citing.

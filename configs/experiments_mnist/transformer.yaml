@@ -1,0 +1,11 @@
+base: '../base_config.yaml'
+
+model:
+  name: 'TransformerReconstructionNet'
+  params:
+    d_model: 512
+    nhead: 16
+    num_layers: 6
+
+training:
+  experiment_name: 'transformer_ghost_imaging_512_f'

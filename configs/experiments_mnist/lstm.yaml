@@ -1,0 +1,10 @@
+base: '../base_config.yaml'
+
+model:
+  name: 'LSTMReconstructionNet'
+  params:
+    hidden_size: 256
+    num_layers: 3
+
+training:
+  experiment_name: 'lstm_ghost_imaging_512_f'

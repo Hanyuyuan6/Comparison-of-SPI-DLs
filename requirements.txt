@@ -1,0 +1,23 @@
+# Reviewed direct dependency pins for current Python 3.10 code verification.
+# Transitive dependency resolution is not hash-locked.
+# These versions are NOT claimed to be the unknown historical environment that
+# produced the released probe values; see README "Environment provenance".
+torch==2.13.0
+torchvision==0.28.0
+numpy==1.26.4
+scipy==1.15.3
+Pillow==12.3.0
+opencv-python==4.11.0.86
+scikit-image==0.25.2
+matplotlib==3.10.7
+tqdm==4.67.1
+pyyaml==6.0.3
+cvxpy==1.7.1
+requests==2.34.2
+kornia==0.8.2
+tensorboard==2.20.0
+thop==0.1.1.post2209072238
+pytest==9.1.1
+
+# Optional experiment logging (not part of the verified core environment):
+# wandb==<choose and pin a reviewed version before enabling logging.use_wandb>

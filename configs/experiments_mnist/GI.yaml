@@ -1,0 +1,5 @@
+base: '../base_config.yaml'
+
+training:
+  batch_size: 32
+  num_workers: 8

@@ -1,0 +1,9 @@
+base: '../base_config.yaml'
+
+model:
+  name: 'FCNReconstructionNet'
+  params:
+    base_channels: 1024
+
+training:
+  experiment_name: 'fcn_ghost_imaging_512_c'
