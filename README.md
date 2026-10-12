@@ -7,9 +7,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Single-pixel imaging (SPI) recovers a 2-D image from a sequence of scalar "bucket" measurements taken
-under structured illumination. This repository benchmarks **ten reconstruction methods on one shared,
-fixed Hadamard acquisition** under an identical train/eval protocol, so the numbers reflect the
-*reconstructor* — not the measurement setup.
+under structured illumination. This repository benchmarks **eight deep networks and correlation ghost
+imaging on one shared, fixed Hadamard acquisition** under an identical evaluation protocol, so the
+numbers reflect the *reconstructor* — not the measurement setup. Compressed sensing is included as an
+optional diagnostic.
 
 It also serves as the reconstruction probe that selects the temporal encoder for **STSF+TPLS**, the
 image-free single-pixel segmentation framework at
