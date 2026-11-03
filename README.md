@@ -1,7 +1,7 @@
 # Single-Pixel Imaging Reconstruction — a Deep-Learning Benchmark
 
 [![arXiv](https://img.shields.io/badge/arXiv-2607.22077-b31b1b.svg)](https://arxiv.org/abs/2607.22077)
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.13](https://img.shields.io/badge/pytorch-2.13-ee4c2c.svg)](https://pytorch.org/)
 [![CI](https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs/actions/workflows/ci.yml/badge.svg)](https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -50,7 +50,7 @@ budgets are compared, but `state_dict`s are **not** interchangeable across archi
 ```bash
 git clone https://github.com/Hanyuyuan6/Comparison-of-SPI-DLs.git
 cd Comparison-of-SPI-DLs
-conda create -n spi-dl python=3.10 -y && conda activate spi-dl
+conda create -n spi-dl python=3.11 -y && conda activate spi-dl
 
 # CPU verification environment (for CUDA, use the matching official PyTorch 2.13 index):
 pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cpu
@@ -61,7 +61,7 @@ pip check
 TensorBoard is the default logger; Weights & Biases is optional (`logging.use_wandb: True`).
 
 > **Environment provenance.** `requirements.txt` pins the direct dependencies in the reviewed Python
-> 3.10 verification environment; transitive packages are resolver-selected rather than hash-locked.
+> 3.11 verification environment; transitive packages are resolver-selected rather than hash-locked.
 > The historical environment that produced the released probe numbers was
 > not archived, so PyTorch 2.13 is **not** claimed to have generated them. Re-running
 > the probe under this pinned environment is a new reproduction and should be reported as such.
